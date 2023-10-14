@@ -2,6 +2,8 @@
 
 `url2bib` is a commandline tool for converting URLs of papers into into BibTeX citations. It tries to use the publication information rather than the arXiv url.
 
+![screenshot.png](screenshot.png)
+
 ## Installation
 ```bash
 pip install url2bib
