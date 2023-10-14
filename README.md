@@ -1,36 +1,16 @@
 # URL to BibTeX Converter (url2bib)
 
-url2bib is a commandline tool for converting URLs of papers into into BibTeX citations. It tries to use the publication information rather than the arXiv url.
+`url2bib` is a commandline tool for converting URLs of papers into into BibTeX citations. It tries to use the publication information rather than the arXiv url.
 
-## Example
-Here's an example of how to use the script:
-
+## Installation
 ```bash
-python url2bib.py https://arxiv.org/abs/2006.11477
+pip install url2bib
 ```
 
-## Prerequisites
-Before using this script, make sure you have the following prerequisites installed:
-
-- Python 3.x
-- Required Python packages, which can be installed via pip:
-  - bibtexparser
-
-
-## Usage
-To use the URL to BibTeX Converter (`url2bib`), follow these steps:
-
-1. Clone this repository to your local machine or download the script.
-
-2. Open your terminal/command prompt and navigate to the directory containing the script.
-
-3. Run the script with the following command:
-    ```bash
-    python url2bib.py [URL]
-    ```
-    Replace [URL] with the URL of the webpage you want to extract BibTeX citations from.
-
-4. The script will retrieve BibTeX entries corresponding to the DOIs found in the webpage and print the resulting BibTeX citation to the console.
+## Usage 
+```bash
+url2bib https://arxiv.org/abs/2006.11477
+```
 
 ## Features
 - Extracts DOIs from URLs and retrieves BibTeX citations for those DOIs.
