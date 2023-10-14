@@ -6,8 +6,12 @@ import requests
 import re
 from collections import Counter
 import bibtexparser
+import urllib.parse
+import xml.etree.ElementTree as ET
+import requests
+from requests.packages.urllib3.exceptions import InsecureRequestWarning
 
-from url2bib.dblp import get_dblp_bibtexs
+requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
 
 USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.0 Safari/605.1.15"
 
@@ -46,7 +50,7 @@ def doi2bibtex(doi:str):
     headers = {'Accept': 'application/x-bibtex; charset=utf-8'}
 
     try:
-        response = requests.get(url, headers=headers)
+        response = requests.get(url, headers=headers, verify=False)
         if response.status_code == 200:
             return response.text
         else:
@@ -56,7 +60,7 @@ def doi2bibtex(doi:str):
         return None  # Or handle the error as needed
 
 def url2bibtex(url: str) -> str:
-    res = requests.get(url, headers={"User-Agent": USER_AGENT})
+    res = requests.get(url, headers={"User-Agent": USER_AGENT}, verify=False)
     if not res.ok:
         print("Could not load website")
         return None
@@ -67,6 +71,32 @@ def url2bibtex(url: str) -> str:
     
     bibtex = doi2bibtex(most_common_doi)
     return bibtex
+
+def get_dblp_bibtexs(paper_title):
+    encoded_search_term = urllib.parse.quote(paper_title)
+    url = f'https://dblp.org/search/publ/api?q={encoded_search_term}'
+    res = requests.get(url, verify=False)
+    assert res.ok
+
+    xml_root = ET.fromstring(res.text)
+    hits = xml_root.findall('.//hit')
+    bibtexs = []
+    for hit in hits:
+        dblp_url = hit.find('.//url').text
+        dblp_title = hit.find('.//title').text
+        # Check if the normalised paper title matches
+        if re.sub(r'[^\w ]', '', dblp_title).lower() != re.sub(r'[^\w ]', '', paper_title).lower():
+            print(f'Discarding false hit: {dblp_title}')
+            continue
+        try:
+            # Get the bibtex
+            res = requests.get(f'{dblp_url}.bib', verify=False)
+            bibtexs.append(res.text)
+        except:
+            print(f'couldn\'t get bib for {dblp_url}')
+
+    return bibtexs
+
 
 def create_bib_id(bibdict: dict):
     # Extract first author
