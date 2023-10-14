@@ -1,0 +1,150 @@
+#!/usr/bin/env python3
+
+import argparse
+import requests
+import re
+from collections import Counter
+import bibtexparser
+import xml.etree.ElementTree as ET
+import urllib.parse
+
+
+USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.0 Safari/605.1.15"
+
+def parseBibtex(bibtex: str):
+    return bibtexparser.loads(bibtex).entries[0]
+
+def buildBibtex(bibdict:dict):
+    new_lib = bibtexparser.bibdatabase.BibDatabase()
+    new_lib.entries = [bibdict]
+    return bibtexparser.dumps(new_lib)
+
+def dois_from_html(html_content: str):
+    doi_pattern = r'(10.\d+/[^\s\>\"\<]+)'
+    dois = re.findall(doi_pattern, html_content)    
+    # Remove false appendices that were not recognised by doi_pattern regex
+    dois = [re.split(r'[^0-9a-zA-Z\-./+_\(\)]', doi)[0] for doi in dois]
+    return dois
+
+def count_strings_in_list(strings_list: list[str]):
+    # Use Counter to count occurrences
+    string_counts = Counter(strings_list)
+    return dict(string_counts)
+
+def doi_from_html(html_content:str):
+    dois = dois_from_html(html_content)
+    if len(dois) == 0:
+        print('No DOIs found on website')
+        return None
+    
+    dois_counted = count_strings_in_list(dois)
+    most_common_doi, most_common_count = max(dois_counted.items(), key=lambda x: x[1])
+    return most_common_doi
+
+def doi2bibtex(doi:str):
+    url = f'https://doi.org/{doi}'
+    headers = {'Accept': 'application/x-bibtex; charset=utf-8'}
+
+    try:
+        response = requests.get(url, headers=headers)
+        if response.status_code == 200:
+            return response.text
+        else:
+            return None  # Or handle the error as needed
+    except requests.exceptions.RequestException as e:
+        print(f"An error occurred: {e}")
+        return None  # Or handle the error as needed
+
+def url2bibtex(url: str) -> str:
+    res = requests.get(url, headers={"User-Agent": USER_AGENT})
+    if not res.ok:
+        print("Could not load website")
+        return None
+    
+    most_common_doi = doi_from_html(res.text)
+    if most_common_doi is None:
+        return None
+    
+    bibtex = doi2bibtex(most_common_doi)
+    return bibtex
+
+def get_dblp_bibtexs(paper_title):
+    encoded_search_term = urllib.parse.quote(paper_title)
+    url = f'https://dblp.org/search/publ/api?q={encoded_search_term}'
+    res = requests.get(url)
+    assert res.ok
+
+    xml_root = ET.fromstring(res.text)
+    hits = xml_root.findall('.//hit')
+    bibtexs = []
+    for hit in hits:
+        dblp_url = hit.find('.//url').text
+        dblp_title = hit.find('.//title').text
+        # Check if the normalised paper title matches
+        if re.sub(r'[^\w ]', '', dblp_title).lower() != re.sub(r'[^\w ]', '', paper_title).lower():
+            print(f'Discarding false hit: {dblp_title}')
+            continue
+        try:
+            # Get the bibtex
+            res = requests.get(f'{dblp_url}.bib')
+            bibtexs.append(res.text)
+        except:
+            print(f'couldn\'t get bib for {dblp_url}')
+
+    return bibtexs
+
+def create_bib_id(bibdict: dict):
+    # Extract first author
+    authors = bibdict['author'].replace('\n',' ').split('and')
+    first_author_fullname = authors[0].strip()
+    if ',' in first_author_fullname:
+        first_author_surname = first_author_fullname.split(',')[0].strip()
+    elif ' ' in first_author_fullname:
+        first_author_surname = first_author_fullname.split(' ')[-1].strip()
+    else:
+        first_author_surname = first_author_fullname.strip()
+
+    year = bibdict['year']
+    title_firstword = [word for word in bibdict['title'].split(' ') if len(word)>3][0]
+    bib_id = f'{first_author_surname.lower()}_{year}_{title_firstword.lower()}'
+    return bib_id
+
+def main():
+    parser = argparse.ArgumentParser(description="Convert a URL containing DOIs to a BibTeX citation.")
+    parser.add_argument("url", type=str, help="The URL to fetch DOIs from.")
+    args = parser.parse_args()
+    url = args.url
+    
+    orig_bibtex = url2bibtex(url)
+    if orig_bibtex is None:
+        print("No BibTeX citation found.")
+        return
+    
+    # Search for publications on dblp.org
+    paper_title = parseBibtex(orig_bibtex)['title']
+    dblp_bibtexs = get_dblp_bibtexs(paper_title)
+    if len(dblp_bibtexs) >= 1:
+        bibtex = dblp_bibtexs[0]
+
+        # Choose the best publication (not informal)
+        for candidate_bibtex in dblp_bibtexs:  # bib: {'title':str, 'venue':str, 'bibtex':str}
+            candidate_bibdict = parseBibtex(candidate_bibtex)
+            if ('journal' in candidate_bibdict) and (candidate_bibdict['journal'].lower() == 'CoRR'.lower()):
+                continue
+            bibtex = candidate_bibtex
+
+    else:
+        bibtex = orig_bibtex
+
+    # Use a unified id: '{firstAuthorSurname}_{year}_{titleFirstWord}'
+    bibdict = parseBibtex(bibtex)
+    bibdict['ID'] = create_bib_id(bibdict)
+    # Clean bibtex (reduce any whitespace to ' ')
+    bibdict = {key: re.sub(r'\s+', ' ', value) for key, value in bibdict.items()}
+    bibtex = buildBibtex(bibdict)
+
+    print(bibtex)
+
+
+if __name__ == "__main__":
+    main()
