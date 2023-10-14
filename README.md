@@ -40,6 +40,9 @@ To use the URL to BibTeX Converter (`url2bib`), follow these steps:
 ## Contributing
 Contributions to this project are welcome. If you have any suggestions or want to report issues, please open an issue or submit a pull request.
 
+## License
+This project is under the [GNU GPLv3](https://choosealicense.com/licenses/gpl-3.0) license.
+
 ## Acknowledgments
 This script uses the `bibtexparser` library for parsing and generating BibTeX entries.
 It also relies on external data sources such as doi.org and dblp.org to fetch BibTeX entries.
