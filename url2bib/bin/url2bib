@@ -111,6 +111,7 @@ def create_bib_id(bibdict: dict):
 
     year = bibdict['year']
     title_firstword = [word for word in bibdict['title'].split(' ') if len(word)>3][0]
+    title_firstword = re.sub(r'[^\w-]', '', title_firstword)  # Remove special characters
     bib_id = f'{first_author_surname.lower()}_{year}_{title_firstword.lower()}'
     return bib_id
 

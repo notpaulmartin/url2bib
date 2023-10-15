@@ -6,7 +6,7 @@ readme.close()
 
 setup(
     name="url2bib",
-    version="0.1.7",
+    version="0.1.8",
     scripts=["url2bib/bin/url2bib"],
     long_description = README_TEXT,
     install_requires=["requests", "bibtexparser", "urllib3"],
