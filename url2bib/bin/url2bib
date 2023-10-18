@@ -51,7 +51,7 @@ def create_bib_id(bibdict: dict):
 
 def preprocess_url(url: str) -> str:
     # Convert arXiv pdf to abstract url
-    pattern = r"https://arxiv\.org/pdf/[\d\.]+\.pdf"
+    pattern = r"https://arxiv\.org/pdf/[\d\.]+"
     if re.match(pattern, url):
         url = url.replace("/pdf/", "/abs/").rstrip(".pdf")
     return url
