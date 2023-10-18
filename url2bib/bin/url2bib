@@ -15,6 +15,10 @@ requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
 
 USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.0 Safari/605.1.15"
 
+####################
+## BibTeX Helpers ##
+####################
+
 def parseBibtex(bibtex: str):
     return bibtexparser.loads(bibtex).entries[0]
 
@@ -22,6 +26,35 @@ def buildBibtex(bibdict:dict):
     new_lib = bibtexparser.bibdatabase.BibDatabase()
     new_lib.entries = [bibdict]
     return bibtexparser.dumps(new_lib)
+
+def create_bib_id(bibdict: dict):
+    # Extract first author
+    authors = bibdict['author'].replace('\n',' ').split('and')
+    first_author_fullname = authors[0].strip()
+    if ',' in first_author_fullname:
+        first_author_surname = first_author_fullname.split(',')[0].strip()
+    elif ' ' in first_author_fullname:
+        first_author_surname = first_author_fullname.split(' ')[-1].strip()
+    else:
+        first_author_surname = first_author_fullname.strip()
+
+    year = bibdict['year']
+    title_firstword = [word for word in bibdict['title'].split(' ') if len(word)>3][0]
+    title_firstword = re.sub(r'[^\w-]', '', title_firstword)  # Remove special characters
+    bib_id = f'{first_author_surname.lower()}_{year}_{title_firstword.lower()}'
+    return bib_id
+
+
+#########################
+## BibTeX from website ##
+#########################
+
+def preprocess_url(url: str) -> str:
+    # Convert arXiv pdf to abstract url
+    pattern = r"https://arxiv\.org/pdf/[\d\.]+\.pdf"
+    if re.match(pattern, url):
+        url = url.replace("/pdf/", "/abs/").rstrip(".pdf")
+    return url
 
 def dois_from_html(html_content: str):
     doi_pattern = r'(10.\d+/[^\s\>\"\<]+)'
@@ -72,6 +105,11 @@ def url2bibtex(url: str) -> str:
     bibtex = doi2bibtex(most_common_doi)
     return bibtex
 
+
+#############################
+## Search for publications ##
+#############################
+
 def get_dblp_bibtexs(paper_title):
     encoded_search_term = urllib.parse.quote(paper_title)
     url = f'https://dblp.org/search/publ/api?q={encoded_search_term}'
@@ -98,28 +136,17 @@ def get_dblp_bibtexs(paper_title):
     return bibtexs
 
 
-def create_bib_id(bibdict: dict):
-    # Extract first author
-    authors = bibdict['author'].replace('\n',' ').split('and')
-    first_author_fullname = authors[0].strip()
-    if ',' in first_author_fullname:
-        first_author_surname = first_author_fullname.split(',')[0].strip()
-    elif ' ' in first_author_fullname:
-        first_author_surname = first_author_fullname.split(' ')[-1].strip()
-    else:
-        first_author_surname = first_author_fullname.strip()
-
-    year = bibdict['year']
-    title_firstword = [word for word in bibdict['title'].split(' ') if len(word)>3][0]
-    title_firstword = re.sub(r'[^\w-]', '', title_firstword)  # Remove special characters
-    bib_id = f'{first_author_surname.lower()}_{year}_{title_firstword.lower()}'
-    return bib_id
+##########
+## Main ##
+##########
 
 def main():
     parser = argparse.ArgumentParser(description="Convert a URL containing DOIs to a BibTeX citation.")
     parser.add_argument("url", type=str, help="The URL to fetch DOIs from.")
     args = parser.parse_args()
     url = args.url
+
+    url = preprocess_url(url)
     
     orig_bibtex = url2bibtex(url)
     if orig_bibtex is None:
