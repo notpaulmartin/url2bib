@@ -50,6 +50,9 @@ def create_bib_id(bibdict: dict):
 #########################
 
 def preprocess_url(url: str) -> str:
+    # Remove whitespace at ends
+    url = url.strip()
+
     # Convert arXiv pdf to abstract url
     pattern = r"https://arxiv\.org/pdf/[\d\.]+"
     if re.match(pattern, url):
@@ -114,7 +117,9 @@ def get_dblp_bibtexs(paper_title):
     encoded_search_term = urllib.parse.quote(paper_title)
     url = f'https://dblp.org/search/publ/api?q={encoded_search_term}'
     res = requests.get(url, verify=False)
-    assert res.ok
+    if not res.ok:
+        print(f'Cannot reach DBLP under the url "{url}"')
+        exit()
 
     xml_root = ET.fromstring(res.text)
     hits = xml_root.findall('.//hit')
