@@ -167,7 +167,7 @@ def url2bibtex(url: str) -> str:
     
     most_common_doi = doi_from_html(res.text)
     most_common_isbn = isbn_from_html(res.text)
-    if (most_common_doi is None) and (most_common_isbn is not None):
+    if (most_common_doi is None) and (most_common_isbn is None):
         print("Neither DOI nor ISBN found.")
         return None
     

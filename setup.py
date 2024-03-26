@@ -6,7 +6,7 @@ readme.close()
 
 setup(
     name="url2bib",
-    version="0.2.0",
+    version="0.2.1",
     scripts=["url2bib/bin/url2bib"],
     long_description = README_TEXT,
     install_requires=["requests", "bibtexparser", "urllib3"],
@@ -14,7 +14,7 @@ setup(
     license="GNU General Public License v3 (GPLv3)",
     description="Given a url returns a bibtex, uses publication if available",
     author="Paul Martin",
-    author_email="pmartin@skiff.com",
+    author_email="p@ulmartin.com",
     keywords=["bibtex", "science", "scientific-journals", "crossref", "doi"],
 
     classifiers=[
