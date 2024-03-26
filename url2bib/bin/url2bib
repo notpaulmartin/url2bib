@@ -19,26 +19,40 @@ USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.
 ## BibTeX Helpers ##
 ####################
 
-def parseBibtex(bibtex: str):
+def parseBibtex(bibtex: str) -> dict:
     return bibtexparser.loads(bibtex).entries[0]
 
-def buildBibtex(bibdict:dict):
+def buildBibtex(bibdict:dict) -> str:
     new_lib = bibtexparser.bibdatabase.BibDatabase()
     new_lib.entries = [bibdict]
     return bibtexparser.dumps(new_lib)
 
 def create_bib_id(bibdict: dict):
     # Extract first author
-    authors = bibdict['author'].replace('\n',' ').split('and')
-    first_author_fullname = authors[0].strip()
-    if ',' in first_author_fullname:
-        first_author_surname = first_author_fullname.split(',')[0].strip()
-    elif ' ' in first_author_fullname:
-        first_author_surname = first_author_fullname.split(' ')[-1].strip()
+    if 'author' in bibdict:
+        authors = bibdict['author'].replace('\n',' ').split('and')
+        first_author_fullname = authors[0].strip()
+        if ',' in first_author_fullname:
+            first_author_surname = first_author_fullname.split(',')[0].strip()
+        elif ' ' in first_author_fullname:
+            first_author_surname = first_author_fullname.split(' ')[-1].strip()
+        else:
+            first_author_surname = first_author_fullname.strip()
     else:
-        first_author_surname = first_author_fullname.strip()
+        print('\033[93mWARNING: No author found in BibTeX entry\033[0m')
+        first_author_surname = 'Unk'
 
-    year = bibdict['year']
+    # Clean first author surname
+    first_author_surname = re.sub(r'[^\w-]', '', first_author_surname)  # Remove special characters
+    first_author_surname = re.split(r'-| ', first_author_surname)       # Split by hyphen or space
+    first_author_surname = list(filter(None, first_author_surname))     # Remove empty strings
+    first_author_surname = first_author_surname[-1]                     # Use the last surname
+
+    if 'year' in bibdict:
+        year = bibdict['year']
+    else:
+        print('\033[93mWARNING: No year found in BibTeX entry\033[0m')
+        year = '0000'
     title_firstword = [word for word in bibdict['title'].split(' ') if len(word)>3][0]
     title_firstword = re.sub(r'[^\w-]', '', title_firstword)  # Remove special characters
     bib_id = f'{first_author_surname.lower()}_{year}_{title_firstword.lower()}'
@@ -71,17 +85,59 @@ def count_strings_in_list(strings_list: list[str]):
     string_counts = Counter(strings_list)
     return dict(string_counts)
 
-def doi_from_html(html_content:str):
+def doi_from_html(html_content: str):
     dois = dois_from_html(html_content)
     if len(dois) == 0:
-        print('No DOIs found on website')
         return None
     
     dois_counted = count_strings_in_list(dois)
     most_common_doi, most_common_count = max(dois_counted.items(), key=lambda x: x[1])
+    print(f'DOI found: {most_common_doi}')
     return most_common_doi
 
-def doi2bibtex(doi:str):
+def isbn_from_html(html: str) -> str:
+    # From https://www.regexlib.com/RETester.aspx?regexp_id=4917 (Matches ISBN-10 & 13)
+    isbn_pattern = r'(ISBN[-]*(1[03])*[ ]*(: ){0,1})*(([0-9Xx][- ]*){13}|([0-9Xx][- ]*){10})'
+    
+    matches = re.findall(isbn_pattern, html)
+    
+    isbn_numbers = []
+    for match in matches:
+        isbn_text = match[0]  # "ISBN", "ISBN-10", or "ISBN-13"
+        isbn_version = match[1]  # "10" or "13"
+        isbn = match[3].strip()
+        isbn_clean = isbn.replace('-', '').replace(' ', '')
+        check_digit = match[4]
+
+        # Don't allow spaces
+        if ' ' in isbn:
+            continue
+
+        # Use check-digit to verify the ISBN number
+        isbn_valid = False
+        # ISBN-10
+        if len(isbn_clean) == 10 and re.match(r'^\d{9}[\dX]$', isbn_clean):
+            total = sum((10 - i) * (10 if x == 'X' else int(x)) for i, x in enumerate(isbn_clean))
+            isbn_valid = (total % 11 == 0)
+        # ISBN-13
+        elif len(isbn_clean) == 13 and re.match(r'^\d{13}$', isbn_clean):
+            total = sum(int(x) * (3 if i % 2 else 1) for i, x in enumerate(isbn_clean))
+            isbn_valid = (total % 10 == 0)
+        
+        if isbn_valid:
+            isbn_numbers.append(isbn)
+
+    # Get most common ISBN
+    if len(isbn_numbers) == 0:
+        return None
+    
+    isbns_counted = count_strings_in_list(isbn_numbers)
+    most_common_isbn, most_common_count = max(isbns_counted.items(), key=lambda x: x[1])
+    print(f'ISBN found: {most_common_isbn}')
+
+    return most_common_isbn
+
+def doi2bibtex(doi: str):
     url = f'https://doi.org/{doi}'
     headers = {'Accept': 'application/x-bibtex; charset=utf-8'}
 
@@ -95,6 +151,14 @@ def doi2bibtex(doi:str):
         print(f"An error occurred: {e}")
         return None  # Or handle the error as needed
 
+def isbn2bibtex(isbn: str):
+    url = "https://api.paperpile.com/api/public/convert"
+    data = {"fromIds": True, "input": str(isbn), "targetFormat": "Bibtex"}
+
+    response = requests.post(url, json=data)
+    output = response.json()
+    return output["output"]
+
 def url2bibtex(url: str) -> str:
     res = requests.get(url, headers={"User-Agent": USER_AGENT}, verify=False)
     if not res.ok:
@@ -102,10 +166,19 @@ def url2bibtex(url: str) -> str:
         return None
     
     most_common_doi = doi_from_html(res.text)
-    if most_common_doi is None:
+    most_common_isbn = isbn_from_html(res.text)
+    if (most_common_doi is None) and (most_common_isbn is not None):
+        print("Neither DOI nor ISBN found.")
         return None
     
-    bibtex = doi2bibtex(most_common_doi)
+    # Merge BibTeX from DOI and ISBN (DOI has priority)
+    bibdict = dict()
+    if most_common_isbn is not None:
+        bibdict |= parseBibtex(isbn2bibtex(most_common_isbn))
+    if most_common_doi is not None:
+        bibdict |= parseBibtex(doi2bibtex(most_common_doi))
+    
+    bibtex = buildBibtex(bibdict)
     return bibtex
 
 
@@ -153,26 +226,24 @@ def main():
 
     url = preprocess_url(url)
     
-    orig_bibtex = url2bibtex(url)
-    if orig_bibtex is None:
+    bibtex = url2bibtex(url)
+    if bibtex is None:
         print("No BibTeX citation found.")
         return
     
     # Search for publications on dblp.org
-    paper_title = parseBibtex(orig_bibtex)['title']
-    dblp_bibtexs = get_dblp_bibtexs(paper_title)
-    if len(dblp_bibtexs) >= 1:
-        bibtex = dblp_bibtexs[0]
+    bibdict = parseBibtex(bibtex)
+    if 'title' in bibdict:
+        dblp_bibtexs = get_dblp_bibtexs(bibdict['title'])
+        if len(dblp_bibtexs) >= 1:
+            bibtex = dblp_bibtexs[0]
 
-        # Choose the best publication (not informal)
-        for candidate_bibtex in dblp_bibtexs:  # bib: {'title':str, 'venue':str, 'bibtex':str}
-            candidate_bibdict = parseBibtex(candidate_bibtex)
-            if ('journal' in candidate_bibdict) and (candidate_bibdict['journal'].lower() == 'CoRR'.lower()):
-                continue
-            bibtex = candidate_bibtex
-
-    else:
-        bibtex = orig_bibtex
+            # Choose the best publication (not informal)
+            for candidate_bibtex in dblp_bibtexs:  # bib: {'title':str, 'venue':str, 'bibtex':str}
+                candidate_bibdict = parseBibtex(candidate_bibtex)
+                if ('journal' in candidate_bibdict) and (candidate_bibdict['journal'].lower() == 'CoRR'.lower()):
+                    continue
+                bibtex = candidate_bibtex
 
     # Use a unified id: '{firstAuthorSurname}_{year}_{titleFirstWord}'
     bibdict = parseBibtex(bibtex)
