@@ -10,6 +10,7 @@ import urllib.parse
 import xml.etree.ElementTree as ET
 import requests
 from requests.packages.urllib3.exceptions import InsecureRequestWarning
+from bs4 import BeautifulSoup
 
 requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
 
@@ -20,6 +21,8 @@ USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.
 ####################
 
 def parseBibtex(bibtex: str) -> dict:
+    if bibtex is None:
+        return dict()
     return bibtexparser.loads(bibtex).entries[0]
 
 def buildBibtex(bibdict:dict) -> str:
@@ -99,7 +102,8 @@ def isbn_from_html(html: str) -> str:
     # From https://www.regexlib.com/RETester.aspx?regexp_id=4917 (Matches ISBN-10 & 13)
     isbn_pattern = r'(ISBN[-]*(1[03])*[ ]*(: ){0,1})*(([0-9Xx][- ]*){13}|([0-9Xx][- ]*){10})'
     
-    matches = re.findall(isbn_pattern, html)
+    website_text = BeautifulSoup(html, "html.parser").get_text()
+    matches = re.findall(isbn_pattern, website_text)
     
     isbn_numbers = []
     for match in matches:
@@ -157,7 +161,11 @@ def isbn2bibtex(isbn: str):
 
     response = requests.post(url, json=data)
     output = response.json()
-    return output["output"]
+    if "output" in output:
+        return output["output"]
+    else:
+        print("ISBN not known")
+        return None
 
 def url2bibtex(url: str) -> str:
     res = requests.get(url, headers={"User-Agent": USER_AGENT}, verify=False)

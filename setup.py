@@ -6,10 +6,10 @@ readme.close()
 
 setup(
     name="url2bib",
-    version="0.2.1",
+    version="0.2.2",
     scripts=["url2bib/bin/url2bib"],
     long_description = README_TEXT,
-    install_requires=["requests", "bibtexparser", "urllib3"],
+    install_requires=["requests", "bibtexparser", "urllib3", "BeautifulSoup4"],
     include_package_data=True,
     license="GNU General Public License v3 (GPLv3)",
     description="Given a url returns a bibtex, uses publication if available",
