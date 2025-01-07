@@ -6,6 +6,7 @@ from .core import (
     doi2bibtex,
     isbn2bibtex,
     parse_bibtex,
+    set_verbosity,
 )
 
 __all__ = [
@@ -13,5 +14,6 @@ __all__ = [
     'doi2bibtex',
     'isbn2bibtex',
     'parse_bibtex',
+    'set_verbosity',
     '__version__',
 ]
