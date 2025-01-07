@@ -2,266 +2,31 @@
 # -*- coding: utf-8 -*-
 
 import argparse
-import requests
-import re
-from collections import Counter
-import bibtexparser
-import urllib.parse
-import xml.etree.ElementTree as ET
-import requests
-from requests.packages.urllib3.exceptions import InsecureRequestWarning
-from bs4 import BeautifulSoup
+import sys
+from url2bib.core import url2bibtex, parse_bibtex, build_bibtex, create_bib_id, set_verbosity
 
-requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
-
-USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.0 Safari/605.1.15"
-
-####################
-## BibTeX Helpers ##
-####################
-
-def parseBibtex(bibtex: str) -> dict:
-    if bibtex is None:
-        return dict()
-    return bibtexparser.loads(bibtex).entries[0]
-
-def buildBibtex(bibdict:dict) -> str:
-    new_lib = bibtexparser.bibdatabase.BibDatabase()
-    new_lib.entries = [bibdict]
-    return bibtexparser.dumps(new_lib)
-
-def create_bib_id(bibdict: dict):
-    # Extract first author
-    if 'author' in bibdict:
-        authors = bibdict['author'].replace('\n',' ').split('and')
-        first_author_fullname = authors[0].strip()
-        if ',' in first_author_fullname:
-            first_author_surname = first_author_fullname.split(',')[0].strip()
-        elif ' ' in first_author_fullname:
-            first_author_surname = first_author_fullname.split(' ')[-1].strip()
-        else:
-            first_author_surname = first_author_fullname.strip()
-    else:
-        print('\033[93mWARNING: No author found in BibTeX entry\033[0m')
-        first_author_surname = 'Unk'
-
-    # Clean first author surname
-    first_author_surname = re.sub(r'[^\w-]', '', first_author_surname)  # Remove special characters
-    first_author_surname = re.split(r'-| ', first_author_surname)       # Split by hyphen or space
-    first_author_surname = list(filter(None, first_author_surname))     # Remove empty strings
-    first_author_surname = first_author_surname[-1]                     # Use the last surname
-
-    if 'year' in bibdict:
-        year = bibdict['year']
-    else:
-        print('\033[93mWARNING: No year found in BibTeX entry\033[0m')
-        year = '0000'
-    title_firstword = [word for word in bibdict['title'].split(' ') if len(word)>3][0]
-    title_firstword = re.sub(r'[^\w-]', '', title_firstword)  # Remove special characters
-    bib_id = f'{first_author_surname.lower()}_{year}_{title_firstword.lower()}'
-    return bib_id
-
-
-#########################
-## BibTeX from website ##
-#########################
-
-def preprocess_url(url: str) -> str:
-    # Remove whitespace at ends
-    url = url.strip()
-
-    # Convert arXiv pdf to abstract url
-    pattern = r"https://arxiv\.org/pdf/[\d\.]+"
-    if re.match(pattern, url):
-        url = url.replace("/pdf/", "/abs/").rstrip(".pdf")
-    return url
-
-def dois_from_html(html_content: str):
-    doi_pattern = r'(10.\d+/[^\s\>\"\<]+)'
-    dois = re.findall(doi_pattern, html_content)    
-    # Remove false appendices that were not recognised by doi_pattern regex
-    dois = [re.split(r'[^0-9a-zA-Z\-./+_\(\)]', doi)[0] for doi in dois]
-    return dois
-
-def count_strings_in_list(strings_list: list[str]):
-    # Use Counter to count occurrences
-    string_counts = Counter(strings_list)
-    return dict(string_counts)
-
-def doi_from_html(html_content: str):
-    dois = dois_from_html(html_content)
-    if len(dois) == 0:
-        return None
-    
-    dois_counted = count_strings_in_list(dois)
-    most_common_doi, most_common_count = max(dois_counted.items(), key=lambda x: x[1])
-    print(f'DOI found: {most_common_doi}')
-    return most_common_doi
-
-def isbn_from_html(html: str) -> str:
-    # From https://www.regexlib.com/RETester.aspx?regexp_id=4917 (Matches ISBN-10 & 13)
-    isbn_pattern = r'(ISBN[-]*(1[03])*[ ]*(: ){0,1})*(([0-9Xx][- ]*){13}|([0-9Xx][- ]*){10})'
-    
-    website_text = BeautifulSoup(html, "html.parser").get_text()
-    matches = re.findall(isbn_pattern, website_text)
-    
-    isbn_numbers = []
-    for match in matches:
-        isbn_text = match[0]  # "ISBN", "ISBN-10", or "ISBN-13"
-        isbn_version = match[1]  # "10" or "13"
-        isbn = match[3].strip()
-        isbn_clean = isbn.replace('-', '').replace(' ', '')
-        check_digit = match[4]
-
-        # Don't allow spaces
-        if ' ' in isbn:
-            continue
-
-        # Use check-digit to verify the ISBN number
-        isbn_valid = False
-        # ISBN-10
-        if len(isbn_clean) == 10 and re.match(r'^\d{9}[\dX]$', isbn_clean):
-            total = sum((10 - i) * (10 if x == 'X' else int(x)) for i, x in enumerate(isbn_clean))
-            isbn_valid = (total % 11 == 0)
-        # ISBN-13
-        elif len(isbn_clean) == 13 and re.match(r'^\d{13}$', isbn_clean):
-            total = sum(int(x) * (3 if i % 2 else 1) for i, x in enumerate(isbn_clean))
-            isbn_valid = (total % 10 == 0)
-        
-        if isbn_valid:
-            isbn_numbers.append(isbn)
-
-    # Get most common ISBN
-    if len(isbn_numbers) == 0:
-        return None
-    
-    isbns_counted = count_strings_in_list(isbn_numbers)
-    most_common_isbn, most_common_count = max(isbns_counted.items(), key=lambda x: x[1])
-    print(f'ISBN found: {most_common_isbn}')
-
-    return most_common_isbn
-
-def doi2bibtex(doi: str):
-    url = f'https://doi.org/{doi}'
-    headers = {'Accept': 'application/x-bibtex; charset=utf-8'}
-
-    try:
-        response = requests.get(url, headers=headers, verify=False)
-        if response.status_code == 200:
-            return response.text
-        else:
-            return None  # Or handle the error as needed
-    except requests.exceptions.RequestException as e:
-        print(f"An error occurred: {e}")
-        return None  # Or handle the error as needed
-
-def isbn2bibtex(isbn: str):
-    url = "https://api.paperpile.com/api/public/convert"
-    data = {"fromIds": True, "input": str(isbn), "targetFormat": "Bibtex"}
-
-    response = requests.post(url, json=data)
-    output = response.json()
-    if "output" in output:
-        return output["output"]
-    else:
-        print("ISBN not known")
-        return None
-
-def url2bibtex(url: str) -> str:
-    res = requests.get(url, headers={"User-Agent": USER_AGENT}, verify=False)
-    if not res.ok:
-        print("Could not load website")
-        return None
-    
-    most_common_doi = doi_from_html(res.text)
-    most_common_isbn = isbn_from_html(res.text)
-    if (most_common_doi is None) and (most_common_isbn is None):
-        print("Neither DOI nor ISBN found.")
-        return None
-    
-    # Merge BibTeX from DOI and ISBN (DOI has priority)
-    bibdict = dict()
-    if most_common_isbn is not None:
-        bibdict |= parseBibtex(isbn2bibtex(most_common_isbn))
-    if most_common_doi is not None:
-        bibdict |= parseBibtex(doi2bibtex(most_common_doi))
-    
-    bibtex = buildBibtex(bibdict)
-    return bibtex
-
-
-#############################
-## Search for publications ##
-#############################
-
-def get_dblp_bibtexs(paper_title):
-    encoded_search_term = urllib.parse.quote(paper_title)
-    url = f'https://dblp.org/search/publ/api?q={encoded_search_term}'
-    res = requests.get(url, verify=False)
-    if not res.ok:
-        print(f'Cannot reach DBLP under the url "{url}"')
-        exit()
-
-    xml_root = ET.fromstring(res.text)
-    hits = xml_root.findall('.//hit')
-    bibtexs = []
-    for hit in hits:
-        dblp_url = hit.find('.//url').text
-        dblp_title = hit.find('.//title').text
-        # Check if the normalised paper title matches
-        if re.sub(r'[^\w ]', '', dblp_title).lower() != re.sub(r'[^\w ]', '', paper_title).lower():
-            print(f'Discarding false hit: {dblp_title}')
-            continue
-        try:
-            # Get the bibtex
-            res = requests.get(f'{dblp_url}.bib', verify=False)
-            bibtexs.append(res.text)
-        except:
-            print(f'couldn\'t get bib for {dblp_url}')
-
-    return bibtexs
-
-
-##########
-## Main ##
-##########
+VERBOSE = True
 
 def main():
-    parser = argparse.ArgumentParser(description="Convert a URL containing DOIs to a BibTeX citation.")
+    set_verbosity(VERBOSE)
+
+    parser = argparse.ArgumentParser(description='Convert URLs to BibTeX entries')
     parser.add_argument("url", type=str, help="The URL to fetch DOIs from.")
     args = parser.parse_args()
-    url = args.url
 
-    url = preprocess_url(url)
-    
-    bibtex = url2bibtex(url)
-    if bibtex is None:
-        print("No BibTeX citation found.")
-        return
-    
-    # Search for publications on dblp.org
-    bibdict = parseBibtex(bibtex)
-    if 'title' in bibdict:
-        dblp_bibtexs = get_dblp_bibtexs(bibdict['title'])
-        if len(dblp_bibtexs) >= 1:
-            bibtex = dblp_bibtexs[0]
-
-            # Choose the best publication (not informal)
-            for candidate_bibtex in dblp_bibtexs:  # bib: {'title':str, 'venue':str, 'bibtex':str}
-                candidate_bibdict = parseBibtex(candidate_bibtex)
-                if ('journal' in candidate_bibdict) and (candidate_bibdict['journal'].lower() == 'CoRR'.lower()):
-                    continue
-                bibtex = candidate_bibtex
-
-    # Use a unified id: '{firstAuthorSurname}_{year}_{titleFirstWord}'
-    bibdict = parseBibtex(bibtex)
-    bibdict['ID'] = create_bib_id(bibdict)
-    # Clean bibtex (reduce any whitespace to ' ')
-    bibdict = {key: re.sub(r'\s+', ' ', value) for key, value in bibdict.items()}
-    bibtex = buildBibtex(bibdict)
-
-    print(bibtex)
-
+    if args.url:
+        bibtex = url2bibtex(args.url)
+        if bibtex:
+            # Parse and rebuild to ensure consistent formatting
+            bibdict = parse_bibtex(bibtex)
+            bibdict['ID'] = create_bib_id(bibdict)
+            print(build_bibtex(bibdict))
+        else:
+            print("No matching publications found", file=sys.stderr)
+            exit(1)
+    else:
+        parser.print_help()
+        exit(1)
 
 if __name__ == "__main__":
     main()

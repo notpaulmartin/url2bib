@@ -5,3 +5,5 @@ env
 # PyPi
 dist
 *.egg-info
+
+.DS_Store
