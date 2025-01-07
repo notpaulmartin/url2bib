@@ -9,10 +9,33 @@
 pip install url2bib
 ```
 
-## Usage 
+## Using as a Commandline Tool
 ```bash
 url2bib https://arxiv.org/abs/2006.11477
 ```
+
+## Using as a Library
+You can also use `url2bib` as a Python library with several key functions:
+
+```python
+from url2bib import url2bibtex, doi2bibtex, isbn2bibtex, parse_bibtex
+
+# Convert a URL to BibTeX
+bibtex: str = url2bibtex('https://arxiv.org/abs/2006.11477')
+
+# Convert a DOI to BibTeX
+bibtex: str = doi2bibtex('10.1145/3447548.3467160')
+
+# Convert an ISBN to BibTeX
+bibtex: str = isbn2bibtex('9780123456789')
+
+# Parse a BibTeX string into a dictionary
+bib_dict: dict = parse_bibtex(bibtex)
+```
+
+### Additional Library Features
+- `set_verbosity(True)`: Enable verbose logging
+- `get_dblp_bibtexs(paper_title)`: Search for publications on DBLP
 
 ## Features
 - Extracts DOIs from URLs and retrieves BibTeX citations for those DOIs.
