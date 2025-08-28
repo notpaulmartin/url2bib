@@ -1,12 +1,15 @@
-from setuptools import setup, find_packages
 import os
 
-# Read version from version.py without importing
-version_file = os.path.join(os.path.dirname(__file__), 'url2bib', 'version.py')
-with open(version_file, 'r') as f:
-    exec(f.read())
+from setuptools import find_packages, setup
 
-readme = open('README.md','r')
+# Read version from version.py without importing
+version_file = os.path.join(os.path.dirname(__file__), "url2bib", "version.py")
+version_ns = {}
+with open(version_file, "r") as f:
+    exec(f.read(), version_ns)
+__version__ = version_ns["__version__"]
+
+readme = open("README.md", "r")
 README_TEXT = readme.read()
 readme.close()
 
@@ -17,12 +20,7 @@ setup(
     scripts=["url2bib/bin/url2bib"],
     long_description=README_TEXT,
     long_description_content_type="text/markdown",
-    install_requires=[
-        "requests>=2.25.0",
-        "bibtexparser>=1.2.0",
-        "urllib3>=1.26.0",
-        "beautifulsoup4>=4.9.0"
-    ],
+    install_requires=["requests>=2.25.0", "bibtexparser>=1.2.0", "urllib3>=1.26.0", "beautifulsoup4>=4.9.0"],
     include_package_data=True,
     license="GNU General Public License v3 (GPLv3)",
     description="Convert URLs to BibTeX entries, with support for DOI and ISBN extraction",
@@ -41,5 +39,5 @@ setup(
         "Topic :: Text Processing :: Markup :: LaTeX",
     ],
     python_requires=">=3.6",
-    url="https://github.com/notpaulmartin/url2bib"
+    url="https://github.com/notpaulmartin/url2bib",
 )
