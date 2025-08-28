@@ -12,7 +12,9 @@ build:
 	./env/bin/python -m build
 
 upload-pypi:
+	./env/bin/python -m twine check dist/*
 	./env/bin/python -m twine upload dist/*
 
 upload-test:
+	./env/bin/python -m twine check dist/*
 	./env/bin/python -m twine upload --repository testpypi dist/*
