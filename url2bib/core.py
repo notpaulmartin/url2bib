@@ -170,7 +170,7 @@ def isbn2bibtex(isbn: str) -> str:
     return None
 
 
-def url2bibtex(url: str, use_dblp: bool = False) -> str:
+def url2bibtex(url: str) -> str:
     """Convert a URL to BibTeX.
 
     When use_dblp is True, try DBLP title search first and prefer
@@ -237,8 +237,22 @@ def get_dblp_bibtexs(paper_title: str) -> list:
                 if url_element is not None:
                     bibtex = venues.venue_funcs[venue_element.text.lower()](url_element.text)
                     if bibtex:
+                        print(f"Got bibtex from venue: {url_element.text}\n")
                         bibtexs.append(bibtex)
                         continue
+
+            # Otherwise get bibtex from DBLP
+            else:
+                dblp_url = info.find("url")
+                if dblp_url is not None:
+                    dblp_bib_url = dblp_url.text.split(".html")[0] + ".bib"
+                    print(f"Got bibtex from DBLP: {dblp_bib_url}\n")
+                    req = requests.get(dblp_bib_url)
+                    if not req.ok:
+                        continue
+                    bibtex = req.text
+                    bibtexs.append(bibtex)
+                    continue
 
         return bibtexs
     except Exception as e:
