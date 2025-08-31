@@ -237,7 +237,7 @@ def get_dblp_bibtexs(paper_title: str) -> list:
                 if url_element is not None:
                     bibtex = venues.venue_funcs[venue_element.text.lower()](url_element.text)
                     if bibtex:
-                        print(f"Got bibtex from venue: {url_element.text}\n")
+                        print(f"Got bibtex from venue: {url_element.text}")
                         bibtexs.append(bibtex)
                         continue
 
@@ -246,7 +246,7 @@ def get_dblp_bibtexs(paper_title: str) -> list:
                 dblp_url = info.find("url")
                 if dblp_url is not None:
                     dblp_bib_url = dblp_url.text.split(".html")[0] + ".bib"
-                    print(f"Got bibtex from DBLP: {dblp_bib_url}\n")
+                    print(f"Got bibtex from DBLP: {dblp_bib_url}")
                     req = requests.get(dblp_bib_url)
                     if not req.ok:
                         continue

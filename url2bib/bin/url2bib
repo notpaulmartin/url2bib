@@ -53,6 +53,7 @@ def main():
                         bibdict = parse_bibtex(chosen_bibtex)
 
             bibdict["ID"] = create_bib_id(bibdict)
+            print()
             print(build_bibtex(bibdict))
         else:
             print("No matching publications found", file=sys.stderr)
