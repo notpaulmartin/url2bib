@@ -230,7 +230,7 @@ def url2bibtex(url: str) -> str:
         r = requests.get(url, headers=headers, verify=False)
         if r.status_code != 200:
             if 'semanticscholar.org' in url:
-                print("Sometimes Semantic Scholar resists scraping")
+                print("Sometimes Semantic Scholar resists scraping. Try using the arXiv url instead.")
         html_text = r.text
 
         # ——— Semantic Scholar ————————————————————————————————————
