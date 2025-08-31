@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+import html
 import re
 import urllib.parse
 import xml.etree.ElementTree as ET
@@ -8,6 +9,7 @@ from collections import Counter
 
 import bibtexparser
 import requests
+from bs4 import BeautifulSoup
 from requests.packages.urllib3.exceptions import InsecureRequestWarning
 
 from . import venues
@@ -18,6 +20,8 @@ USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.
 
 verbose = False
 
+
+# ——— Helper Functions ———————————————————————————————————————————————
 
 def set_verbosity(verbose_: bool) -> None:
     global verbose
@@ -31,6 +35,14 @@ def maybeprint(*args, **kwargs) -> None:
     if verbose:
         print(*args, **kwargs)
 
+
+def count_strings_in_list(strings_list: list[str]) -> dict:
+    """Count occurrences of strings in a list."""
+    string_counts = Counter(strings_list)
+    return dict(string_counts)
+
+
+# ——— BibTex Handling ————————————————————————————————————————————————
 
 def parse_bibtex(bibtex: str) -> dict:
     """Parse a BibTeX string into a dictionary."""
@@ -89,18 +101,14 @@ def preprocess_url(url: str) -> str:
     return url
 
 
+# ——— Extract from HTML ——————————————————————————————————————————————
+
 def dois_from_html(html_content: str) -> list:
     """Extract DOIs from HTML content."""
     doi_pattern = r"(10.\d+/[^\s\>\"\<]+)"
     dois = re.findall(doi_pattern, html_content)
     dois = [re.split(r"[^0-9a-zA-Z\-./+_\(\)]", doi)[0] for doi in dois]
     return dois
-
-
-def count_strings_in_list(strings_list: list[str]) -> dict:
-    """Count occurrences of strings in a list."""
-    string_counts = Counter(strings_list)
-    return dict(string_counts)
 
 
 def doi_from_html(html_content: str) -> str:
@@ -150,6 +158,23 @@ def isbn_from_html(html: str) -> str:
     return None
 
 
+def semscholar_bibtex_from_html(html_content: str) -> str:
+    """Get BibTeX from Semantic Scholar HTML."""
+    soup = BeautifulSoup(html_content, "html.parser")
+    for pre in soup.select('pre.bibtex-citation'):
+        # .text preserves the text content, including newlines;
+        # html.unescape handles any entities that survived.
+        bibtex = html.unescape(pre.get_text())
+        # Strip leading/trailing blank lines but keep internal formatting
+        bibtex = bibtex.strip()
+        if bibtex:
+            return bibtex
+
+    return None
+
+
+# ——— *2bibtex ———————————————————————————————————————————————————————
+
 def doi2bibtex(doi: str) -> str:
     """Convert a DOI to BibTeX format."""
     url = f"https://doi.org/{doi}"
@@ -184,6 +209,12 @@ def url2bibtex(url: str) -> str:
             return None
 
         html_text = r.text
+
+        # ——— Semantic Scholar ————————————————————————————————————
+        if 'semanticscholar.org' in url:
+            bibtex = semscholar_bibtex_from_html(html_text)
+            if bibtex:
+                return bibtex
 
         # ——— Try DOI —————————————————————————————————————————————
         doi = doi_from_html(html_text)
