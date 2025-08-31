@@ -159,7 +159,30 @@ def isbn_from_html(html: str) -> str:
 
 
 def semscholar_bibtex_from_html(html_content: str) -> str:
-    """Get BibTeX from Semantic Scholar HTML."""
+    """
+    Extract BibTeX from Semantic Scholar HTML content.
+    Use arXiv URL for consistency, if available.
+
+    1. Look for arXiv URL in the HTML and convert it to BibTeX if exactly
+       one unique arXiv URL is found.
+    2. If no arXiv URL is found, search for BibTeX citation blocks wrapped
+       in <pre class="bibtex-citation">
+
+    Args:
+        html_content (str): The HTML content from a Semantic Scholar page
+
+    Returns:
+        str: BibTeX citation string if found, None otherwise
+    """
+
+    # 1. Prefer to extract arxiv url and use that
+    matches = re.findall(r"https://arxiv\.org/pdf/\S+?\.pdf", html_content)
+    unique_arxiv_urls = list(set(matches))  # Deduplicate
+    if len(unique_arxiv_urls) == 1:
+        # Only trust the url if there is exactly one unique match
+        print(f"Using arXiv URL: {unique_arxiv_urls[0]}")
+        return url2bibtex(unique_arxiv_urls[0])
+
     soup = BeautifulSoup(html_content, "html.parser")
     for pre in soup.select('pre.bibtex-citation'):
         # .text preserves the text content, including newlines;
@@ -206,8 +229,8 @@ def url2bibtex(url: str) -> str:
     try:
         r = requests.get(url, headers=headers, verify=False)
         if r.status_code != 200:
-            return None
-
+            if 'semanticscholar.org' in url:
+                print("Sometimes Semantic Scholar resists scraping")
         html_text = r.text
 
         # ——— Semantic Scholar ————————————————————————————————————
