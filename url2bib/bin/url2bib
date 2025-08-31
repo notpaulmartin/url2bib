@@ -19,6 +19,52 @@ VERBOSE = True
 USE_DBLP = True
 
 
+def use_dblp(bibdict: dict) -> dict:
+    """
+    Query DBLP for a publication matching the given title.
+
+    Args:
+        bibdict (dict): The BibTeX dictionary to be updated.
+
+    Returns:
+        dict: The updated bibdict if a match is found, or the input bibdict if no match is found.
+    """
+
+    print("Querying DBLP...")
+
+    title = bibdict.get("title", "")
+    if not title:
+        return bibdict
+
+    dblp_bibtexs = get_dblp_bibtexs(title)
+    if not dblp_bibtexs:
+        return bibdict
+
+    # Prefer entries not mentioning CoRR / arXiv
+    preferred = []
+    deprioritized = []
+
+    for bibtex_entry in dblp_bibtexs:
+        if re.search(r"(corr|arxiv)", bibtex_entry, re.I):
+            deprioritized.append(bibtex_entry)
+        else:
+            preferred.append(bibtex_entry)
+
+    if len(preferred) + len(deprioritized) < 0:
+        maybeprint("No matching publications found in DBLP")
+        return bibdict
+
+    if len(preferred) > 0:
+        print("Choosing paper from venue.")
+        chosen_bibtex = preferred[0]
+    else:
+        print("Choosing paper from arXiv.")
+        chosen_bibtex = deprioritized[0]
+
+    new_bibdict = parse_bibtex(chosen_bibtex)
+    return new_bibdict
+
+
 def main():
     set_verbosity(VERBOSE)
 
@@ -31,26 +77,10 @@ def main():
         if bibtex:
             # Parse and rebuild to ensure consistent formatting
             bibdict = parse_bibtex(bibtex)
+
             # Try DBLP (optional)
             if USE_DBLP:
-                print("Querying DBLP...")
-                title = bibdict.get("title", "")
-                if title:
-                    dblp_bibtexs = get_dblp_bibtexs(title)
-                    if dblp_bibtexs:
-                        # Prefer entries not mentioning CoRR / arXiv
-                        preferred = []
-                        deprioritized = []
-
-                        for bibtex_entry in dblp_bibtexs:
-                            if re.search(r"(corr|arxiv)", bibtex_entry, re.I):
-                                deprioritized.append(bibtex_entry)
-                            else:
-                                preferred.append(bibtex_entry)
-
-                        chosen_bibtex = (preferred or deprioritized)[0]
-                        maybeprint("Selected paper from DBLP.")
-                        bibdict = parse_bibtex(chosen_bibtex)
+                bibdict = use_dblp(bibdict)
 
             bibdict["ID"] = create_bib_id(bibdict)
             print()
