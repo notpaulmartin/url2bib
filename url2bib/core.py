@@ -261,7 +261,8 @@ def get_dblp_bibtexs(paper_title: str) -> list:
 
     try:
         # Make the request
-        response = requests.get(search_url)
+        headers = {"User-Agent": USER_AGENT}
+        response = requests.get(search_url, headers=headers, timeout=10)
         response.raise_for_status()
 
         # Parse the XML response
@@ -301,7 +302,7 @@ def get_dblp_bibtexs(paper_title: str) -> list:
                 if dblp_url is not None:
                     dblp_bib_url = dblp_url.text.split(".html")[0] + ".bib"
                     print(f"Got bibtex from DBLP: {dblp_bib_url}")
-                    req = requests.get(dblp_bib_url)
+                    req = requests.get(dblp_bib_url, headers=headers, timeout=10)
                     if not req.ok:
                         continue
                     bibtex = req.text
