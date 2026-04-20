@@ -14,6 +14,7 @@ from url2bib.core import (
     set_verbosity,
     url2bibtex,
 )
+from url2bib.version import __version__
 
 VERBOSE = True
 USE_DBLP = True
@@ -69,7 +70,10 @@ def main():
     set_verbosity(VERBOSE)
 
     parser = argparse.ArgumentParser(description="Convert URLs to BibTeX entries")
-    parser.add_argument("url", type=str, help="The URL to fetch DOIs from.")
+    parser.add_argument(
+        "--version", action="version", version=f"%(prog)s {__version__}"
+    )
+    parser.add_argument("url", nargs="?", type=str, help="The URL to fetch DOIs from.")
     args = parser.parse_args()
 
     if args.url:
