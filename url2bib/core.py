@@ -51,11 +51,29 @@ def parse_bibtex(bibtex: str) -> dict:
     return bibtexparser.loads(bibtex).entries[0]
 
 
+def format_bibtex(bibtex: str) -> str:
+    """Indent continued BibTeX field lines."""
+    indented_lines = []
+
+    for line in bibtex.splitlines():
+        if (
+            line
+            and not line.startswith((" ", "@", "}"))
+            and indented_lines
+            and indented_lines[-1].startswith(" ")
+        ):
+            line = f"  {line}"
+        indented_lines.append(line)
+
+    return "\n".join(indented_lines)
+
+
 def build_bibtex(bibdict: dict) -> str:
     """Convert a bibliography dictionary into a BibTeX string."""
     new_lib = bibtexparser.bibdatabase.BibDatabase()
     new_lib.entries = [bibdict]
-    return bibtexparser.dumps(new_lib)
+    bibtex = bibtexparser.dumps(new_lib)
+    return format_bibtex(bibtex)
 
 
 def create_bib_id(bibdict: dict) -> str:
