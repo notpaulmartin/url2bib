@@ -4,7 +4,7 @@ Template for adding a new input parser.
 Rename this file to `<name>.py` to enable it.
 """
 
-from ..models import LookupContext
+from ..types import LookupContext
 
 PRIORITY = 50
 

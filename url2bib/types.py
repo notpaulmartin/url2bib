@@ -1,3 +1,5 @@
+"""Shared data models passed between parsers, resolver logic, and providers."""
+
 from dataclasses import dataclass
 
 
@@ -5,7 +7,6 @@ from dataclasses import dataclass
 class LookupContext:
     input_url: str = ""
     normalized_url: str = ""
-    source_domain: str = ""
     html: str = ""
     title: str = ""
     authors: str = ""
@@ -14,7 +15,6 @@ class LookupContext:
     keywords: str = ""
     publisher: str = ""
     url: str = ""
-    bibtex: str = ""
 
 
 @dataclass

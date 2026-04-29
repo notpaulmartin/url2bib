@@ -5,8 +5,10 @@ from urllib.parse import urljoin
 import requests
 from bs4 import BeautifulSoup
 
-from ..core import USER_AGENT, build_candidate_record, doi2bibtex, maybeprint
-from ..models import CandidateRecord, LookupContext
+from ..bibtex import build_candidate_record
+from ..core import maybeprint
+from ..identifiers import USER_AGENT, doi2bibtex
+from ..types import CandidateRecord, LookupContext
 
 NAME = "DBLP"
 

@@ -4,8 +4,10 @@ import urllib.parse
 
 import requests
 
-from ..core import USER_AGENT, build_candidate_record, maybeprint
-from ..models import CandidateRecord, LookupContext
+from ..bibtex import build_candidate_record
+from ..core import maybeprint
+from ..identifiers import USER_AGENT
+from ..types import CandidateRecord, LookupContext
 
 NAME = "OpenReview"
 

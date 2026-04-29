@@ -1,5 +1,7 @@
+"""Rule-based selection of input parsers and publication providers."""
+
 from .input_parsers import load_input_parsers
-from .models import LookupContext
+from .types import LookupContext
 from .providers import dblp, openreview
 
 OPENREVIEW_ARXIV_TOPICS = {

@@ -3,7 +3,7 @@ import re
 
 from bs4 import BeautifulSoup
 
-from ..models import LookupContext
+from ..types import LookupContext
 
 PRIORITY = 20  # Lower = earlier
 

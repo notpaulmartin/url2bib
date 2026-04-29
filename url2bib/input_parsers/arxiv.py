@@ -1,7 +1,7 @@
 import re
 
-from ..core import doi2bibtex, doi_from_html
-from ..models import LookupContext
+from ..identifiers import doi2bibtex, doi_from_html
+from ..types import LookupContext
 
 PRIORITY = 10  # Lower = earlier
 

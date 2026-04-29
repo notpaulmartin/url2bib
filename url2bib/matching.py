@@ -1,7 +1,10 @@
+"""Heuristics for matching provider results to the target publication."""
+
 from difflib import SequenceMatcher
 import re
 
-from .models import CandidateRecord
+from .bibtex import build_candidate_record
+from .types import CandidateRecord
 
 TITLE_TOKEN_IGNORE_WORDS = {
     "a",
@@ -155,8 +158,6 @@ def choose_bibtex(
     source_title: str, source_authors: str, bibtex_entries: list[str]
 ) -> tuple[bool, str] | None:
     """Choose the best plausible paper match from raw BibTeX entries."""
-    from .core import build_candidate_record
-
     candidates = [
         build_candidate_record("candidate", bibtex_entry) for bibtex_entry in bibtex_entries
     ]

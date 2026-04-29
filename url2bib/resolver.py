@@ -1,10 +1,14 @@
+"""Top-level URL resolution flow from parser extraction to provider selection."""
+
 from urllib.parse import urlparse
 
 import requests
 
-from .core import USER_AGENT, maybeprint, parse_bibtex
-from .models import LookupContext
-from .paper_matching import choose_candidate
+from .bibtex import parse_bibtex
+from .core import maybeprint
+from .identifiers import USER_AGENT
+from .matching import choose_candidate
+from .types import LookupContext
 from .rules import select_input_parsers, select_providers
 
 
@@ -77,7 +81,6 @@ def _build_url_context(url: str, parsers: list) -> LookupContext | None:
     return LookupContext(
         input_url=url,
         normalized_url=normalized_url,
-        source_domain=urlparse(normalized_url).netloc.lower(),
         html=response.text,
     )
 
@@ -92,8 +95,6 @@ def _build_publication_context(bibdict: dict) -> LookupContext:
         keywords=bibdict.get("keywords", ""),
         publisher=bibdict.get("publisher", ""),
         url=url,
-        bibtex="",
-        source_domain=urlparse(url).netloc.lower() if url else "",
     )
 
 
