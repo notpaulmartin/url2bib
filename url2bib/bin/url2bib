@@ -4,58 +4,11 @@
 import argparse
 import sys
 
-from url2bib.core import (
-    build_bibtex,
-    create_bib_id,
-    get_dblp_bibtexs,
-    maybeprint,
-    parse_bibtex,
-    set_verbosity,
-    url2bibtex,
-)
-from url2bib.paper_matching import choose_bibtex
+from url2bib.core import build_bibtex, create_bib_id, set_verbosity
+from url2bib.resolver import resolve_url_bibdict
 from url2bib.version import __version__
 
 VERBOSE = True
-USE_DBLP = True
-
-
-def use_dblp(bibdict: dict) -> dict:
-    """
-    Query DBLP for a publication matching the given title.
-
-    Args:
-        bibdict (dict): The BibTeX dictionary to be updated.
-
-    Returns:
-        dict: The updated bibdict if a match is found, or the input bibdict if no match is found.
-    """
-
-    print("Querying DBLP...")
-
-    title = bibdict.get("title", "")
-    if not title:
-        return bibdict
-    authors = bibdict.get("author", "")
-
-    dblp_bibtexs = get_dblp_bibtexs(title)
-    if not dblp_bibtexs:
-        return bibdict
-
-    best_match = choose_bibtex(title, authors, dblp_bibtexs)
-    if best_match is None:
-        maybeprint("No matching publications found in DBLP")
-        return bibdict
-
-    is_published, chosen_bibtex = best_match
-
-    if is_published:
-        print("Choosing paper from venue.")
-    else:
-        print("Choosing paper from arXiv.")
-
-    new_bibdict = parse_bibtex(chosen_bibtex)
-    return new_bibdict
 
 
 def main():
@@ -68,25 +21,18 @@ def main():
     parser.add_argument("url", nargs="?", type=str, help="The URL to fetch DOIs from.")
     args = parser.parse_args()
 
-    if args.url:
-        bibtex = url2bibtex(args.url)
-        if bibtex:
-            # Parse and rebuild to ensure consistent formatting
-            bibdict = parse_bibtex(bibtex)
-
-            # Try DBLP (optional)
-            if USE_DBLP:
-                bibdict = use_dblp(bibdict)
-
-            bibdict["ID"] = create_bib_id(bibdict)
-            print()
-            print(build_bibtex(bibdict))
-        else:
-            print("No matching publications found", file=sys.stderr)
-            exit(1)
-    else:
+    if not args.url:
         parser.print_help()
         exit(1)
+
+    bibdict = resolve_url_bibdict(args.url)
+    if not bibdict:
+        print("No matching publications found", file=sys.stderr)
+        exit(1)
+
+    bibdict["ID"] = create_bib_id(bibdict)
+    print()
+    print(build_bibtex(bibdict))
 
 
 if __name__ == "__main__":

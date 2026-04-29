@@ -39,7 +39,7 @@ bib_dict: dict = parse_bibtex(bibtex)
 
 ## Features
 - Extracts DOIs from URLs and retrieves BibTeX citations for those DOIs.
-- Searches for publications of the paper.
+- Searches for publications of the paper via DBLP and, for relevant arXiv topics, OpenReview.
 - Generates a BibTeX entry with a unified ID in the format `{firstAuthorSurname}_{year}_{titleFirstWord}`.
 
 ## Contributing
@@ -50,7 +50,7 @@ This project is under the [GNU GPLv3](https://choosealicense.com/licenses/gpl-3.
 
 ## Acknowledgments
 This script uses the `bibtexparser` library for parsing and generating BibTeX entries.
-It also relies on external data sources such as doi.org and dblp.org to fetch BibTeX entries.
+It also relies on external data sources such as doi.org, dblp.org, and openreview.net to fetch BibTeX entries.
 
 ## Disclaimer
 This script is provided as-is, and the accuracy of the generated BibTeX entries depends on the availability and quality of external data sources. Always double-check and edit citations as needed for your research papers and publications.

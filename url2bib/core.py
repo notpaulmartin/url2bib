@@ -1,18 +1,14 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-import html
 import re
-import urllib.parse
-import xml.etree.ElementTree as ET
 from collections import Counter
 
 import bibtexparser
 import requests
-from bs4 import BeautifulSoup
 from requests.packages.urllib3.exceptions import InsecureRequestWarning
 
-from . import venues
+from .models import CandidateRecord
 
 requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
 
@@ -76,6 +72,18 @@ def build_bibtex(bibdict: dict) -> str:
     return format_bibtex(bibtex)
 
 
+def build_candidate_record(source: str, bibtex: str) -> CandidateRecord:
+    """Build a structured candidate from a BibTeX entry."""
+    bibdict = parse_bibtex(bibtex)
+    return CandidateRecord(
+        source=source,
+        bibtex=bibtex,
+        title=bibdict.get("title", ""),
+        authors=bibdict.get("author", ""),
+        is_published=not re.search(r"(corr|arxiv)", bibtex, re.I),
+    )
+
+
 def create_bib_id(bibdict: dict) -> str:
     """Create a BibTeX ID from a bibliography dictionary."""
     # Extract first author
@@ -107,16 +115,6 @@ def create_bib_id(bibdict: dict) -> str:
     title_firstword = re.sub(r"[^\w-]", "", title_firstword)
     bib_id = f"{first_author_surname.lower()}_{year}_{title_firstword.lower()}"
     return bib_id
-
-
-def preprocess_url(url: str) -> str:
-    """Preprocess and normalize a URL."""
-    url = url.strip()
-
-    # Normalize arxiv URLs
-    if re.match(r"https://arxiv\.org/pdf/[\d\.]+", url):
-        url = url.replace("/pdf/", "/abs/").rstrip(".pdf")
-    return url
 
 
 # ——— Extract from HTML ——————————————————————————————————————————————
@@ -175,45 +173,6 @@ def isbn_from_html(html: str) -> str:
 
     return None
 
-
-def semscholar_bibtex_from_html(html_content: str) -> str:
-    """
-    Extract BibTeX from Semantic Scholar HTML content.
-    Use arXiv URL for consistency, if available.
-
-    1. Look for arXiv URL in the HTML and convert it to BibTeX if exactly
-       one unique arXiv URL is found.
-    2. If no arXiv URL is found, search for BibTeX citation blocks wrapped
-       in <pre class="bibtex-citation">
-
-    Args:
-        html_content (str): The HTML content from a Semantic Scholar page
-
-    Returns:
-        str: BibTeX citation string if found, None otherwise
-    """
-
-    # 1. Prefer to extract arxiv url and use that
-    matches = re.findall(r"https://arxiv\.org/pdf/\S+?\.pdf", html_content)
-    unique_arxiv_urls = list(set(matches))  # Deduplicate
-    if len(unique_arxiv_urls) == 1:
-        # Only trust the url if there is exactly one unique match
-        print(f"Using arXiv URL: {unique_arxiv_urls[0]}")
-        return url2bibtex(unique_arxiv_urls[0])
-
-    soup = BeautifulSoup(html_content, "html.parser")
-    for pre in soup.select('pre.bibtex-citation'):
-        # .text preserves the text content, including newlines;
-        # html.unescape handles any entities that survived.
-        bibtex = html.unescape(pre.get_text())
-        # Strip leading/trailing blank lines but keep internal formatting
-        bibtex = bibtex.strip()
-        if bibtex:
-            return bibtex
-
-    return None
-
-
 # ——— *2bibtex ———————————————————————————————————————————————————————
 
 def doi2bibtex(doi: str) -> str:
@@ -237,99 +196,22 @@ def isbn2bibtex(isbn: str) -> str:
 
 
 def url2bibtex(url: str) -> str:
-    """Convert a URL to BibTeX.
+    """Convert a URL to BibTeX format."""
+    from .resolver import extract_url_bibtex
 
-    When use_dblp is True, try DBLP title search first and prefer
-    non-CoRR / non-arXiv entries before falling back to DOI / ISBN.
-    """
-    url = preprocess_url(url)
-    headers = {"User-Agent": USER_AGENT}
-    try:
-        r = requests.get(url, headers=headers, verify=False)
-        if r.status_code != 200:
-            if 'semanticscholar.org' in url:
-                print("Sometimes Semantic Scholar resists scraping. Try using the arXiv url instead.")
-        html_text = r.text
-
-        # ——— Semantic Scholar ————————————————————————————————————
-        if 'semanticscholar.org' in url:
-            bibtex = semscholar_bibtex_from_html(html_text)
-            if bibtex:
-                return bibtex
-
-        # ——— Try DOI —————————————————————————————————————————————
-        doi = doi_from_html(html_text)
-        if doi:
-            return doi2bibtex(doi)
-
-        # ——— Try ISBN ————————————————————————————————————————————
-        isbn = isbn_from_html(html_text)
-        if isbn:
-            return isbn2bibtex(isbn)
-
-    except Exception as e:
-        maybeprint(f"Error processing URL: {str(e)}")
-    return None
-
+    return extract_url_bibtex(url)
 
 def get_dblp_bibtexs(paper_title: str) -> list:
     """Search for publications on DBLP and return their BibTeX entries."""
-    # Prepare the search URL
-    search_url = f"https://dblp.org/search/publ/api?q={urllib.parse.quote(paper_title)}&format=xml"
+    from .models import LookupContext
+    from .providers import dblp
 
-    try:
-        # Make the request
-        headers = {"User-Agent": USER_AGENT}
-        response = requests.get(search_url, headers=headers, timeout=10)
-        response.raise_for_status()
+    return [candidate.bibtex for candidate in dblp.search(LookupContext(title=paper_title))]
 
-        # Parse the XML response
-        root = ET.fromstring(response.content)
 
-        # Extract hit elements
-        hits = root.findall(".//hit")
-        bibtexs = []
-        for hit in hits:
-            info = hit.find("info")
-            if info is None:
-                continue
+def get_openreview_bibtexs(paper_title: str) -> list:
+    """Search OpenReview by exact title and return any BibTeX entries found."""
+    from .models import LookupContext
+    from .providers import openreview
 
-            doi_element = info.find("doi")
-            venue_element = info.find("venue")
-
-            # Get bibtex via DOI if available
-            if doi_element is not None and doi_element.text:
-                bibtex = doi2bibtex(doi_element.text)
-                if bibtex:
-                    bibtexs.append(bibtex)
-                    continue
-
-            # Otherwise try to get bibtex via venue (e.g. neurips has no doi)
-            elif venue_element is not None and venue_element.text.lower() in venues.venue_funcs:
-                url_element = info.find("ee")
-                if url_element is not None:
-                    bibtex = venues.venue_funcs[venue_element.text.lower()](url_element.text)
-                    if bibtex:
-                        print(f"Got bibtex from venue: {url_element.text}")
-                        bibtexs.append(bibtex)
-                        continue
-
-            # Otherwise get bibtex from DBLP
-            else:
-                dblp_url = info.find("url")
-                if dblp_url is not None:
-                    dblp_bib_url = dblp_url.text.split(".html")[0] + ".bib"
-                    req = requests.get(dblp_bib_url, headers=headers, timeout=10)
-                    if not req.ok:
-                        continue
-                    bibtex = req.text
-                    bibdict = parse_bibtex(bibtex)
-                    title = bibdict.get("title", "").replace("\n", " ").strip()
-                    print(f'Got bibtex from DBLP: {dblp_bib_url} ("{title}")')
-                    bibtexs.append(bibtex)
-                    continue
-
-        return bibtexs
-    except Exception as e:
-        maybeprint(f"Error searching DBLP: {str(e)}")
-        return []
+    return [candidate.bibtex for candidate in openreview.search(LookupContext(title=paper_title))]

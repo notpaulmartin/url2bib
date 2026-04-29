@@ -1,7 +1,7 @@
 from difflib import SequenceMatcher
 import re
 
-from .core import parse_bibtex
+from .models import CandidateRecord
 
 TITLE_TOKEN_IGNORE_WORDS = {
     "a",
@@ -120,36 +120,47 @@ def is_plausible_match(
 
 
 def score_match_candidate(
-    source_title: str, source_authors: str, bibtex_entry: str
+    source_title: str, source_authors: str, candidate: CandidateRecord
 ) -> tuple[bool, float] | None:
     """Return selection metadata for a plausible paper match."""
-    candidate_bibdict = parse_bibtex(bibtex_entry)
-    candidate_title = candidate_bibdict.get("title", "")
-    candidate_authors = candidate_bibdict.get("author", "")
     plausible, score = is_plausible_match(
-        source_title, source_authors, candidate_title, candidate_authors
+        source_title, source_authors, candidate.title, candidate.authors
     )
     if not plausible:
         return None
 
-    is_published = not re.search(r"(corr|arxiv)", bibtex_entry, re.I)
-    return is_published, score
+    return candidate.is_published, score
+
+
+def choose_candidate(
+    source_title: str, source_authors: str, candidates: list[CandidateRecord]
+) -> CandidateRecord | None:
+    """Choose the best plausible paper match."""
+    ranked_matches = []
+
+    for candidate in candidates:
+        ranking = score_match_candidate(source_title, source_authors, candidate)
+        if ranking is None:
+            continue
+        ranked_matches.append((*ranking, candidate))
+
+    if len(ranked_matches) == 0:
+        return None
+
+    _, _, chosen_candidate = max(ranked_matches, key=lambda item: (item[0], item[1]))
+    return chosen_candidate
 
 
 def choose_bibtex(
     source_title: str, source_authors: str, bibtex_entries: list[str]
 ) -> tuple[bool, str] | None:
-    """Choose the best plausible paper match."""
-    ranked_matches = []
+    """Choose the best plausible paper match from raw BibTeX entries."""
+    from .core import build_candidate_record
 
-    for bibtex_entry in bibtex_entries:
-        ranking = score_match_candidate(source_title, source_authors, bibtex_entry)
-        if ranking is None:
-            continue
-        ranked_matches.append((*ranking, bibtex_entry))
-
-    if len(ranked_matches) == 0:
+    candidates = [
+        build_candidate_record("candidate", bibtex_entry) for bibtex_entry in bibtex_entries
+    ]
+    chosen_candidate = choose_candidate(source_title, source_authors, candidates)
+    if chosen_candidate is None:
         return None
-
-    is_published, _, chosen_bibtex = max(ranked_matches)
-    return is_published, chosen_bibtex
+    return chosen_candidate.is_published, chosen_candidate.bibtex
